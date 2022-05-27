@@ -10,43 +10,55 @@
       ./hardware-configuration.nix
     ];
 
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  # Bootloader.
+  boot = {
+    # Stay up-to-date on the kernel.
+    kernelPackages = pkgs.linuxPackages_latest;
+    loader = {
+      systemd-boot.editor = false;
+      # Use the systemd-boot EFI boot loader.
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
+      efi.efiSysMountPoint = "/boot/efi";
+    };
+    # Silent Boot
+    # https://wiki.archlinux.org/title/Silent_boot
+    kernelParams = [
+      "quiet"
+      "splash"
+      "vga=current"
+      "rd.systemd.show_status=false"
+      "rd.udev.log_level=3"
+      "udev.log_priority=3"
+    ];
+    consoleLogLevel = 0;
+    # https://github.com/NixOS/nixpkgs/pull/108294
+    initrd.verbose = false;    
+  };
 
-  # Use the systemd-boot EFI boot loader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  networking.hostName = "latitude"; # Define your hostname.
-  # Pick only one of the below networking options.
+  networking.hostName = "nixos"; # Define your hostname.
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
-  networking.networkmanager.enable = true;  # Easiest to use and most distros use this by default.
-
-  # Set your time zone.
-  time.timeZone = "Europe/Dublin";
 
   # Configure network proxy if necessary
   # networking.proxy.default = "http://user:password@proxy:port/";
   # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
+  # Enable networking
+  networking.networkmanager.enable = true;
+
+  # Set your time zone.
+  time.timeZone = "Europe/Dublin";
+
   # Select internationalisation properties.
-  # i18n.defaultLocale = "en_US.UTF-8";
-  # console = {
-  #   font = "Lat2-Terminus16";
-  #   keyMap = "us";
-  #   useXkbConfig = true; # use xkbOptions in tty.
-  # };
+  i18n.defaultLocale = "en_IE.utf8";
+
+  # Enable the X11 windowing system.
+  services.xserver.enable = true;
+
+  # Disable Lightdm
+  services.xserver.displayManager.lightdm.enable = false;
 
   # Greeter
-  # SystemD can use TTY1 as log
-  systemd.services = {
-    "autovt@tty1".enable = false;
-    greetd.unitConfig = {
-      After = [ "getty@tty1.service" ];
-      Conflicts = [ "getty@tty1.service" ];
-    };
-  };
-  boot.kernelParams = [ "console=tty1" ];
-
   # Run GreetD on TTY2
   services.greetd = {
     enable = true;
@@ -72,8 +84,8 @@
       kanshi
       slurp
       alacritty # Alacritty is the default terminal in the config
-      wofi # Dmenu is the default in the config but i recommend wofi since its wayland native
       waybar
+      wofi
     ];
     extraSessionCommands = ''
       export SDL_VIDEODRIVER=wayland
@@ -84,10 +96,7 @@
     '';
   };
 
-  programs.waybar.enable = true;
-
-  # QT
-  programs.qt5ct.enable = true;
+  # XDG Portals
 
   xdg.portal = {
     enable = true;
@@ -95,51 +104,47 @@
   };  
 
   # Configure keymap in X11
-  # services.xserver.layout = "us";
-  # services.xserver.xkbOptions = {
-  #   "eurosign:e";
-  #   "caps:escape" # map caps to escape.
-  # };
+  services.xserver = {
+    layout = "us";
+    xkbVariant = "mac";
+  };
 
   # Enable CUPS to print documents.
-  # services.printing.enable = true;
- 
-  # Enable sound.
-  # sound.enable = true;
-  hardware.pulseaudio.enable = false;
+  services.printing.enable = true;
 
-  security.rtkit.enable = true;
+  # Enable sound with pipewire.
+security.rtkit.enable = true;
   services.pipewire = {
     enable = true;
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true;
     media-session.config.bluez-monitor.rules = [
-    {
-      # Matches all cards
-      matches = [ { "device.name" = "~bluez_card.*"; } ];
-      actions = {
-        "update-props" = {
-          "bluez5.reconnect-profiles" = [ "hfp_hf" "hsp_hs" "a2dp_sink" ];
-          # mSBC is not expected to work on all headset + adapter combinations.
-          "bluez5.msbc-support" = true;
-          # SBC-XQ is not expected to work on all headset + adapter combinations.
-          "bluez5.sbc-xq-support" = true;
+      {
+        # Matches all cards
+        matches = [ { "device.name" = "~bluez_card.*"; } ];
+        actions = {
+          "update-props" = {
+            "bluez5.reconnect-profiles" = [ "hfp_hf" "hsp_hs" "a2dp_sink" ];
+            # mSBC is not expected to work on all headset + adapter combinations.
+            "bluez5.msbc-support" = true;
+            # SBC-XQ is not expected to work on all headset + adapter combinations.
+            "bluez5.sbc-xq-support" = true;
+          };
         };
-      };
-    }
-    {
-      matches = [
-        # Matches all sources
-        { "node.name" = "~bluez_input.*"; }
-        # Matches all outputs
-        { "node.name" = "~bluez_output.*"; }
-      ];
-      actions = {
-        "node.pause-on-idle" = false;
-      };
-    }
-  ];
+      }
+      {
+        matches = [
+          # Matches all sources
+          { "node.name" = "~bluez_input.*"; }
+          # Matches all outputs
+          { "node.name" = "~bluez_output.*"; }
+        ];
+        actions = {
+          "node.pause-on-idle" = false;
+        };
+      }
+    ];
   };
 
   # Bluetooth
@@ -151,37 +156,51 @@
     };
   };
 
+
   # Enable touchpad support (enabled default in most desktopManager).
   services.xserver.libinput.enable = true;
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.tommy = {
     isNormalUser = true;
-    extraGroups = [ "networkmanager" "video" "wheel" ]; # Enable ‘sudo’ for the user.
+    description = "Tommy";
+    extraGroups = [ "libvirtd" "networkmanager" "video" "wheel" ];
   };
+
+  virtualisation.libvirtd.enable = true;
+  programs.dconf.enable = true;
+
+  users.users.tommy.shell = pkgs.zsh;
+  # Allow unfree packages
+  nixpkgs.config.allowUnfree = true;
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-    neovim vscode # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-    wget git curl
+    neovim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
+    wget curl git unzip unrar ranger
     firefox-wayland google-chrome
-    indicator-application-gtk3 xdg-user-dirs
-    discord teams zoom-us slack
-    pavucontrol pulseaudio
+    discord zoom-us teams slack
+    vscode flutter android-studio gnome-builder python310
+    htop neofetch
+    gnome.gnome-tweaks gnome.gnome-software xdg-user-dirs
+    pavucontrol pulseaudio easyeffects
     mpv yt-dlp streamlink weechat
-    gnome.gnome-tweaks
-    htop neofetch brightnessctl
-    flutter android-studio
-    weechat xfce.thunar
-    wine winetricks
-    qt5Full waydroid
+    session-desktop-appimage
+    wineWowPackages.waylandFull winetricks
+    brightnessctl
     vmware-horizon-client
+    virt-manager
+    brasero
   ];
 
-  users.users.tommy.shell = pkgs.zsh;
+  services.flatpak.enable = true;
 
-  programs.steam.enable = true;
+  programs.steam = {
+    enable = true;
+    remotePlay.openFirewall = true; # Open ports in the firewall for Steam Remote Play
+    dedicatedServer.openFirewall = true; # Open ports in the firewall for Source Dedicated Server
+  };
 
   # Fonts
   fonts.fonts = with pkgs; [
@@ -197,7 +216,6 @@
     meslo-lgs-nf
     ubuntu_font_family
   ];
-
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
@@ -216,22 +234,14 @@
   # networking.firewall.allowedTCPPorts = [ ... ];
   # networking.firewall.allowedUDPPorts = [ ... ];
   # Or disable the firewall altogether.
-  networking.firewall.enable = false;
-
-  # Copy the NixOS configuration file and link it from the resulting system
-  # (/run/current-system/configuration.nix). This is useful in case you
-  # accidentally delete configuration.nix.
-  # system.copySystemConfiguration = true;
-
-  nixpkgs.config.allowUnfree = true;
+  # networking.firewall.enable = false;
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
-  # on your system were taken. It‘s perfectly fine and recommended to leave
+  # on your system were taken. It‘s perfectly fine and recommended to leavecatenate(variables, "bootdev", bootdev)
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
   system.stateVersion = "22.05"; # Did you read the comment?
 
 }
-
